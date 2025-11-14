@@ -60,7 +60,7 @@ class MLRun:
         run_id = wandb_run.id
         wandb_entity = wandb_run.entity
         wandb_project = wandb_run.project
-        run_dir = os.path.join(base_dir, run_id)
+        run_dir = os.path.join(base_dir, project_name, run_id)
         os.makedirs(run_dir, exist_ok=True)
 
         # 3. Save metadata together in config.toml
@@ -95,11 +95,26 @@ class MLRun:
         return instance
 
     @classmethod
-    def load(cls, run_id: str, base_dir: str) -> "MLRun":
+    def load(cls, run_id: str, base_dir: str, project_name: Optional[str] = None) -> "MLRun":
         """
         Load local config.toml and metrics.toml from existing run_id.
+        If project_name is not provided, searches for run_id in all project subdirectories.
         """
-        run_dir = os.path.join(base_dir, run_id)
+        if project_name:
+            run_dir = os.path.join(base_dir, project_name, run_id)
+        else:
+            # Search for run_id in all subdirectories
+            found_dirs = glob.glob(os.path.join(base_dir, "*", run_id))
+            if not found_dirs:
+                raise FileNotFoundError(
+                    f"run_id {run_id} not found in any project under {base_dir}"
+                )
+            if len(found_dirs) > 1:
+                raise ValueError(
+                    f"Multiple runs with id {run_id} found: {found_dirs}. Please specify project_name."
+                )
+            run_dir = found_dirs[0]
+        
         config_path = os.path.join(run_dir, "config.toml")
 
         if not os.path.exists(config_path):
@@ -208,7 +223,7 @@ class MLProject:
         Load all config.toml and metrics.toml in base_dir,
         merge them and convert to DataFrame.
         """
-        config_paths = glob.glob(os.path.join(self.base_dir, "*", "config.toml"))
+        config_paths = glob.glob(os.path.join(self.base_dir, "*", "*", "config.toml"))
         
         all_data = []
 
@@ -219,7 +234,7 @@ class MLProject:
             try:
                 # 1. Load config.toml (contains _wandb, _meta)
                 with open(path, "r") as f:
-                    data = toml.load(path)
+                    data = toml.load(f)
                 
                 data["run_id"] = run_id
                 data["run_dir"] = run_dir
@@ -229,7 +244,7 @@ class MLProject:
                 if os.path.exists(metrics_path):
                     try:
                         with open(metrics_path, "r") as f:
-                            metrics = toml.load(metrics_path)
+                            metrics = toml.load(f)
                         data.update(metrics)
                     except Exception as e:
                         print(f"Warning: Could not load metrics {metrics_path}: {e}")
@@ -295,9 +310,9 @@ class MLProject:
         else:
             return results_df
 
-    def get_run(self, run_id: str) -> MLRun:
-        """Load MLRun object by specifying run_id"""
-        return MLRun.load(run_id, self.base_dir)
+    def get_run(self, run_id: str, project_name: Optional[str] = None) -> MLRun:
+        """Load MLRun object by specifying run_id and optional project_name"""
+        return MLRun.load(run_id, self.base_dir, project_name)
 
     def __len__(self):
         return len(self.df)

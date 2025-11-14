@@ -8,7 +8,7 @@ This gives you the immediate visualization of `wandb` combined with the portabil
 
 ## Features
 
-* 🚀 **Start New Runs**: `MLRun.create()` automatically initializes `wandb` and creates a local directory for your run.
+* 🚀 **Start New Runs**: `MLRun.create()` automatically initializes `wandb` and creates a local directory for your run at `base_dir/project_name/run_id`.
 * 💾 **Local-First Storage**: Saves experiment configs to `config.toml` and final metrics to `metrics.toml` for every run.
 * 📊 **Dual Logging**: `run.add_metrics()` logs to both `wandb` (live) and the local `metrics.toml` (persistence) with a single call.
 * 🔍 **Pandas-Powered Analysis**: `MLProject` loads your entire experiment history from local files into a `pandas` DataFrame.
@@ -102,7 +102,7 @@ print(f"Find this run at: {run2.get_wandb_url()}")
 # --- 3. Analyze All Experiments ---
 print("\n--- Analyzing Project ---")
 
-# This scans ./checkpoints and loads all config.toml/metrics.toml files
+# This scans ./checkpoints/{project_name}/{run_id} and loads all config.toml/metrics.toml files
 project = MLProject(base_dir=BASE_CHECKPOINT_DIR)
 
 print("\n[Full Experiment DataFrame]")
@@ -138,8 +138,8 @@ Manages a single experiment run.
 * **Details**:
     1.  Calls `wandb.init(project=project_name, entity=entity, config=config)`.
     2.  Gets the `run_id` from the `wandb` response.
-    3.  Creates a directory: `{base_dir}/{run_id}`.
-    4.  Saves the `config` (plus `_wandb` metadata) to `{base_dir}/{run_id}/config.toml`.
+    3.  Creates a directory: `{base_dir}/{project_name}/{run_id}`.
+    4.  Saves the `config` (plus `_wandb` metadata) to `{base_dir}/{project_name}/{run_id}/config.toml`.
 * **Returns**: An `MLRun` instance with an active `wandb_run` connection.
 
 #### `run.add_metrics(metrics_dict)`
@@ -153,11 +153,12 @@ Manages a single experiment run.
 * **Action**: Finishes the active `wandb` run.
 * **Details**: Calls `run.wandb_run.finish()`. This should be called at the end of your training script.
 
-#### `MLRun.load(run_id, base_dir)`
+#### `MLRun.load(run_id, base_dir, project_name=None)`
 * **Action**: Loads an existing experiment run from local files.
 * **Details**:
-    1.  Reads `{base_dir}/{run_id}/config.toml`.
-    2.  Reads `{base_dir}/{run_id}/metrics.toml` (if it exists).
+    1.  Reads `{base_dir}/{project_name}/{run_id}/config.toml`.
+    2.  Reads `{base_dir}/{project_name}/{run_id}/metrics.toml` (if it exists).
+    3.  If `project_name` is not provided, automatically searches for the `run_id` in all project subdirectories.
 * **Returns**: An `MLRun` instance. This instance **does not** have an active `wandb` connection (`wandb_run` is `None`).
 
 #### `run.get_wandb_url()`
@@ -174,7 +175,7 @@ Manages and queries a collection of runs stored in the `base_dir`.
 
 #### `project.load_project()`
 * **Action**: Scans all subdirectories in `base_dir` for `config.toml` and `metrics.toml` files.
-* **Details**: It loads all configs and metrics, merges them, and builds a `pandas` DataFrame stored in `project.df`. This method is called automatically on init, but you can call it again to refresh the DataFrame.
+* **Details**: It loads all configs and metrics from the `{base_dir}/{project_name}/{run_id}` directory structure, merges them, and builds a `pandas` DataFrame stored in `project.df`. This method is called automatically on init, but you can call it again to refresh the DataFrame.
 
 #### `project.df`
 * **Attribute**: The `pandas.DataFrame` containing all experiment data.
@@ -190,8 +191,11 @@ Manages and queries a collection of runs stored in the `base_dir`.
         * If `False` (default): Returns a `pandas.DataFrame` (a subset of `project.df`).
         * If `True`: Returns a `List[MLRun]` of loaded `MLRun` objects matching the query.
 
-#### `project.get_run(run_id)`
+#### `project.get_run(run_id, project_name=None)`
 * **Action**: A convenience method to load a single `MLRun` object from the project's `base_dir`.
+* **Arguments**:
+    * `run_id` (str): The unique identifier of the run.
+    * `project_name` (str, optional): The project name. If not provided, searches all projects.
 * **Returns**: An `MLRun` instance.
 
 ---
