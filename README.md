@@ -144,12 +144,15 @@ Manages a single experiment run.
     5.  Saves the `config` (plus `_wandb` and `_meta` metadata including git commit) to `{base_dir}/{project_name}/{run_id}/config.toml`.
 * **Returns**: An `MLRun` instance with an active `wandb_run` connection.
 
-#### `run.add_metrics(metrics_dict)`
+#### `run.add_metrics(metrics_dict, record_to_wandb=True)`
 * **Action**: Logs metrics for the run.
+* **Arguments**:
+    * `metrics_dict` (dict): Dictionary of metrics to add.
+    * `record_to_wandb` (bool, optional): If `False` (default), metrics are not logged in wandb. Set to `True` if you need to log metrics in wandb as well.
 * **Details**:
     1.  Updates the `run.metrics` attribute in the object.
     2.  Saves the *entire* `run.metrics` dictionary to `{run.run_dir}/metrics.toml`.
-    3.  If `run.wandb_run` is active, calls `wandb_run.log(metrics_dict)` to log to the cloud.
+    3.  If `run.wandb_run` is active and `record_to_wandb` is `True`, calls `wandb_run.log(metrics_dict)` to log to the cloud.
 
 #### `run.finish()`
 * **Action**: Finishes the active `wandb` run.

@@ -170,7 +170,7 @@ def test_mlrun_add_metrics(tmp_path, mock_wandb_init):
     run.add_metrics(metrics1)
     
     metrics2 = {"f1_score": 0.88, "epoch": 2}
-    run.add_metrics(metrics2) # Test append/overwrite
+    run.add_metrics(metrics2, record_to_wandb=True) # Test append/overwrite
 
     # 3. Verification (filesystem)
     metrics_path = os.path.join(run.run_dir, "metrics.toml")
@@ -181,6 +181,32 @@ def test_mlrun_add_metrics(tmp_path, mock_wandb_init):
 
     # 4. Verification (wandb)
     mock_run.log.assert_called_with(metrics2)
+
+def test_mlrun_add_metrics_no_wandb_logging(tmp_path, mock_wandb_init):
+    """
+    Test that MLRun.add_metrics with record_to_wandb=False does not call wandb.log
+    """
+    # 1. Setup
+    mock_init, mock_run = mock_wandb_init
+    mock_run.id = "test_no_wandb_run"
+    config = {"lr": 0.05}
+    run = MLRun.create(config, str(tmp_path), "p", "e")
+    
+    # Reset the mock to clear any previous calls
+    mock_run.log.reset_mock()
+
+    # 2. Action - add metrics without logging to wandb
+    metrics = {"accuracy": 0.95, "loss": 0.05}
+    run.add_metrics(metrics, record_to_wandb=False)
+
+    # 3. Verification (filesystem - should still save)
+    metrics_path = os.path.join(run.run_dir, "metrics.toml")
+    loaded_metrics = toml.load(metrics_path)
+    assert loaded_metrics["accuracy"] == 0.95
+    assert loaded_metrics["loss"] == 0.05
+
+    # 4. Verification (wandb - should NOT be called)
+    mock_run.log.assert_not_called()
 
 # --- Change 4: Added timestamp test to load ---
 def test_mlrun_load_with_timestamp(tmp_path):

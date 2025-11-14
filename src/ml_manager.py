@@ -203,9 +203,14 @@ class MLRun:
             git_commit=git_commit,
         )
 
-    def add_metrics(self, metrics_dict: Dict[str, Any]):
+    def add_metrics(self, metrics_dict: Dict[str, Any], record_to_wandb: bool = False):
         """
         Register metrics as a dictionary and save to local metrics.toml.
+        
+        Args:
+            metrics_dict: Dictionary of metrics to add.
+            record_to_wandb: If True (default), logs metrics to wandb. Set to False
+                           if metrics are logged to wandb externally.
         """
         if not isinstance(metrics_dict, dict):
             print(f"Error (Run {self.run_id}): metrics must be a dictionary.")
@@ -222,7 +227,7 @@ class MLRun:
         except Exception as e:
             print(f"Error saving metrics to {metrics_path}: {e}")
 
-        if self.wandb_run:
+        if self.wandb_run and record_to_wandb:
             self.wandb_run.log(metrics_dict)
             print(f"Logged to wandb: {metrics_dict}")
 
