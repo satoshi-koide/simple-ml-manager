@@ -14,6 +14,7 @@ This gives you the immediate visualization of `wandb` combined with the portabil
 * 🔍 **Pandas-Powered Analysis**: `MLProject` loads your entire experiment history from local files into a `pandas` DataFrame.
 * 🏃‍♂️ **Powerful Querying**: Search and filter experiments locally using pandas query strings (e.g., `` `accuracy` > 0.9 and `model.name` == 'BERT' ``).
 * 🔄 **Easy Reloading**: Load any `MLRun` object from its `run_id` to inspect its configuration and metrics.
+* 🔖 **Git Commit Tracking**: Automatically records the current git commit hash for reproducibility (if the working directory is in a git repository).
 
 ---
 
@@ -138,8 +139,9 @@ Manages a single experiment run.
 * **Details**:
     1.  Calls `wandb.init(project=project_name, entity=entity, config=config)`.
     2.  Gets the `run_id` from the `wandb` response.
-    3.  Creates a directory: `{base_dir}/{project_name}/{run_id}`.
-    4.  Saves the `config` (plus `_wandb` metadata) to `{base_dir}/{project_name}/{run_id}/config.toml`.
+    3.  Detects and records the current git commit hash (if in a git repository).
+    4.  Creates a directory: `{base_dir}/{project_name}/{run_id}`.
+    5.  Saves the `config` (plus `_wandb` and `_meta` metadata including git commit) to `{base_dir}/{project_name}/{run_id}/config.toml`.
 * **Returns**: An `MLRun` instance with an active `wandb_run` connection.
 
 #### `run.add_metrics(metrics_dict)`

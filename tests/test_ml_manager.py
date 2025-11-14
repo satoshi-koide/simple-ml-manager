@@ -8,7 +8,7 @@ import pandas.api.types as ptypes  # For pandas type checking
 
 # Import the classes to be tested
 # (Assuming they are saved in 'ml_manager.py' in the same directory)
-from ml_manager import MLRun, MLProject
+from ml_manager import MLRun, MLProject, get_git_commit
 
 # --- Fixtures (Test Setup) --------------------------------------------------
 
@@ -261,6 +261,75 @@ def test_mlrun_load_not_found(tmp_path):
     """
     with pytest.raises(FileNotFoundError):
         MLRun.load(run_id="non_existent_id", base_dir=str(tmp_path))
+
+
+# --- Git Commit Tests ---
+
+def test_get_git_commit():
+    """
+    Test that get_git_commit returns a commit hash when in a git repo
+    """
+    # This test assumes the test is run within a git repository
+    commit = get_git_commit()
+    # If we're in a git repo, should return a 40-char hex string
+    if commit is not None:
+        assert len(commit) == 40
+        assert all(c in '0123456789abcdef' for c in commit)
+
+def test_mlrun_create_with_git_commit(tmp_path, mock_wandb_init, mocker):
+    """
+    Test that MLRun.create correctly records git commit if in a git repo
+    """
+    mock_init, mock_run = mock_wandb_init
+    mock_run.id = "test_git_run"
+    mock_run.entity = "test_entity"
+    mock_run.project = "test_project"
+    
+    # Mock get_git_commit to return a fake commit hash
+    fake_commit = "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0"
+    mocker.patch('ml_manager.get_git_commit', return_value=fake_commit)
+    
+    config = {"lr": 0.01}
+    run = MLRun.create(config, str(tmp_path), "test_project", "test_entity")
+    
+    # Verify git commit is stored in instance
+    assert run.git_commit == fake_commit
+    
+    # Verify git commit is saved to config.toml
+    config_path = os.path.join(tmp_path, "test_project", "test_git_run", "config.toml")
+    loaded_config = toml.load(config_path)
+    assert "_meta" in loaded_config
+    assert loaded_config["_meta"]["git_commit"] == fake_commit
+    
+    run.finish()
+
+def test_mlrun_load_with_git_commit(tmp_path):
+    """
+    Test that MLRun.load correctly loads git commit from config.toml
+    """
+    run_id = "git_load_test"
+    project_name = "test_project"
+    project_dir = tmp_path / project_name
+    project_dir.mkdir()
+    run_dir = project_dir / run_id
+    run_dir.mkdir()
+    
+    fake_commit = "1234567890abcdef1234567890abcdef12345678"
+    
+    config_data = {
+        "lr": 0.5,
+        "_wandb": {"run_id": run_id, "project": project_name},
+        "_meta": {
+            "created_at": "2023-01-01T00:00:00+00:00",
+            "git_commit": fake_commit
+        }
+    }
+    toml.dump(config_data, open(run_dir / "config.toml", "w"))
+    
+    run = MLRun.load(run_id=run_id, base_dir=str(tmp_path), project_name=project_name)
+    
+    assert run.git_commit == fake_commit
+    assert run.run_id == run_id
 
 
 # --- MLProject Class Tests -------------------------------------------------

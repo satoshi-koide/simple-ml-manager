@@ -5,6 +5,33 @@ import glob
 import pandas as pd
 from typing import Dict, Any, Optional, List
 import datetime  # Added for timestamp
+import subprocess  # Added for git commands
+
+# --- Helper functions ---
+
+def get_git_commit(cwd: Optional[str] = None) -> Optional[str]:
+    """
+    Get the current git commit hash if the directory is in a git repository.
+    
+    Args:
+        cwd: Working directory to check. If None, uses current directory.
+    
+    Returns:
+        Git commit hash (str) if in a git repo, None otherwise.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+        pass
+    return None
 
 # --- MLRun class ---
 
@@ -21,6 +48,7 @@ class MLRun:
         created_at: Optional[datetime.datetime] = None,
         wandb_entity: Optional[str] = None,
         wandb_project: Optional[str] = None,
+        git_commit: Optional[str] = None,
     ):
         self.run_id = run_id
         self.config = config  # Original config specified by user
@@ -32,6 +60,7 @@ class MLRun:
         self.created_at = created_at
         self.wandb_entity = wandb_entity
         self.wandb_project = wandb_project
+        self.git_commit = git_commit
 
     @classmethod
     def create(
@@ -56,6 +85,9 @@ class MLRun:
         created_at_time = datetime.datetime.now(datetime.timezone.utc)
         created_at_str = created_at_time.isoformat()
 
+        # Get git commit if in a git repository
+        git_commit = get_git_commit()
+
         # 2. Get information from wandb
         run_id = wandb_run.id
         wandb_entity = wandb_run.entity
@@ -75,6 +107,9 @@ class MLRun:
         full_config["_meta"] = {
             "created_at": created_at_str
         }
+        # Add git commit if available
+        if git_commit:
+            full_config["_meta"]["git_commit"] = git_commit
 
         config_path = os.path.join(run_dir, "config.toml")
         with open(config_path, "w") as f:
@@ -90,6 +125,7 @@ class MLRun:
             created_at=created_at_time, # --- Change 5: Pass datetime object ---
             wandb_entity=wandb_entity,
             wandb_project=wandb_project,
+            git_commit=git_commit,
         )
         instance.wandb_run = wandb_run
         return instance
@@ -142,6 +178,9 @@ class MLRun:
             except ValueError:
                 print(f"Warning (Run {run_id}): Could not parse created_at string: {created_at_str}")
 
+        # Extract git commit
+        git_commit = meta_info.get("git_commit")
+
         # Load metrics.toml as well
         metrics_path = os.path.join(run_dir, "metrics.toml")
         metrics = {}
@@ -161,6 +200,7 @@ class MLRun:
             created_at=created_at_obj,
             wandb_entity=wandb_info.get("entity"),
             wandb_project=wandb_info.get("project"),
+            git_commit=git_commit,
         )
 
     def add_metrics(self, metrics_dict: Dict[str, Any]):
@@ -204,7 +244,8 @@ class MLRun:
 
     def __repr__(self):
         ts_str = self.created_at.strftime('%Y-%m-%d %H:%M') if self.created_at else 'UnknownTime'
-        return f"<MLRun (id={self.run_id}, created={ts_str})>"
+        git_str = f", git={self.git_commit[:7]}" if self.git_commit else ""
+        return f"<MLRun (id={self.run_id}, created={ts_str}{git_str})>"
 
 
 # --- MLProject class ---
