@@ -4,31 +4,31 @@ import os
 import glob
 import pandas as pd
 from typing import Dict, Any, Optional, List
-import datetime  # <<< タイムスタンプのために追加
+import datetime  # Added for timestamp
 
-# --- MLRun クラス ---
+# --- MLRun class ---
 
 class MLRun:
-    """単一の機械学習 run を管理するクラス"""
+    """Class to manage a single machine learning run"""
 
     def __init__(
         self,
         run_id: str,
-        config: Dict[str, Any],  # 純粋なユーザーconfig
+        config: Dict[str, Any],  # Pure user config
         run_dir: str,
         metrics: Dict[str, Any] = None,
-        # --- 変更点 1: メタデータを引数で受け取る ---
+        # --- Change 1: Accept metadata as arguments ---
         created_at: Optional[datetime.datetime] = None,
         wandb_entity: Optional[str] = None,
         wandb_project: Optional[str] = None,
     ):
         self.run_id = run_id
-        self.config = config  # ユーザーが指定したオリジナルの config
+        self.config = config  # Original config specified by user
         self.run_dir = run_dir
         self.metrics = metrics if metrics is not None else {}
-        self.wandb_run = None  # wandb.init() が返すアクティブな run オブジェクト
+        self.wandb_run = None  # Active run object returned by wandb.init()
 
-        # --- 変更点 2: メタデータをインスタンス変数として保持 ---
+        # --- Change 2: Store metadata as instance variables ---
         self.created_at = created_at
         self.wandb_entity = wandb_entity
         self.wandb_project = wandb_project
@@ -42,36 +42,36 @@ class MLRun:
         entity: Optional[str] = None,
     ) -> "MLRun":
         """
-        新しい run を作成し、wandb.init() を呼び出し、ローカルに config を保存する。
+        Create a new run, call wandb.init(), and save config locally.
         """
         print(f"Creating new run in project '{project_name}'...")
-        # 1. wandb を初期化
+        # 1. Initialize wandb
         wandb_run = wandb.init(
             project=project_name,
             entity=entity,
             config=config,
         )
 
-        # --- 変更点 3: タイムスタンプ (UTC) を生成 ---
+        # --- Change 3: Generate timestamp (UTC) ---
         created_at_time = datetime.datetime.now(datetime.timezone.utc)
         created_at_str = created_at_time.isoformat()
 
-        # 2. wandb から情報を取得
+        # 2. Get information from wandb
         run_id = wandb_run.id
         wandb_entity = wandb_run.entity
         wandb_project = wandb_run.project
         run_dir = os.path.join(base_dir, run_id)
         os.makedirs(run_dir, exist_ok=True)
 
-        # 3. config.toml にメタデータも一緒に保存
+        # 3. Save metadata together in config.toml
         full_config = config.copy()
-        # wandb メタデータ
+        # wandb metadata
         full_config["_wandb"] = {
             "entity": wandb_entity,
             "project": wandb_project,
             "run_id": run_id,
         }
-        # --- 変更点 4: タイムスタンプ用メタデータを追加 ---
+        # --- Change 4: Add timestamp metadata ---
         full_config["_meta"] = {
             "created_at": created_at_str
         }
@@ -81,13 +81,13 @@ class MLRun:
             toml.dump(full_config, f)
         print(f"Run {run_id} created. Config saved to {config_path}")
 
-        # 4. MLRun インスタンスを作成
+        # 4. Create MLRun instance
         instance = cls(
             run_id=run_id,
-            config=config, # 純粋な config
+            config=config, # Pure config
             run_dir=run_dir,
             metrics={},
-            created_at=created_at_time, # --- 変更点 5: datetime オブジェクトを渡す ---
+            created_at=created_at_time, # --- Change 5: Pass datetime object ---
             wandb_entity=wandb_entity,
             wandb_project=wandb_project,
         )
@@ -97,7 +97,7 @@ class MLRun:
     @classmethod
     def load(cls, run_id: str, base_dir: str) -> "MLRun":
         """
-        既存の run_id からローカルの config.toml と metrics.toml を読み込む。
+        Load local config.toml and metrics.toml from existing run_id.
         """
         run_dir = os.path.join(base_dir, run_id)
         config_path = os.path.join(run_dir, "config.toml")
@@ -110,24 +110,24 @@ class MLRun:
         with open(config_path, "r") as f:
             full_config = toml.load(f)
 
-        # --- 変更点 6: メタデータを抽出しつつ、config から削除 ---
+        # --- Change 6: Extract metadata while removing from config ---
         wandb_info = full_config.pop("_wandb", {})
         meta_info = full_config.pop("_meta", {})
         
-        # 残ったものがオリジナルの config
+        # What remains is the original config
         user_config = full_config
 
-        # タイムスタンプをパース
+        # Parse timestamp
         created_at_obj = None
         created_at_str = meta_info.get("created_at")
         if created_at_str:
             try:
-                # ISO 形式から datetime オブジェクトに変換
+                # Convert from ISO format to datetime object
                 created_at_obj = datetime.datetime.fromisoformat(created_at_str)
             except ValueError:
                 print(f"Warning (Run {run_id}): Could not parse created_at string: {created_at_str}")
 
-        # metrics.toml もロードする
+        # Load metrics.toml as well
         metrics_path = os.path.join(run_dir, "metrics.toml")
         metrics = {}
         if os.path.exists(metrics_path):
@@ -137,7 +137,7 @@ class MLRun:
             except Exception as e:
                 print(f"Warning: Could not load metrics {metrics_path}: {e}")
 
-        # --- 変更点 7: 抽出したメタデータをコンストラクタに渡す ---
+        # --- Change 7: Pass extracted metadata to constructor ---
         return cls(
             run_id=run_id,
             config=user_config,
@@ -150,7 +150,7 @@ class MLRun:
 
     def add_metrics(self, metrics_dict: Dict[str, Any]):
         """
-        メトリクスを辞書で登録し、ローカルの metrics.toml に保存する。
+        Register metrics as a dictionary and save to local metrics.toml.
         """
         if not isinstance(metrics_dict, dict):
             print(f"Error (Run {self.run_id}): metrics must be a dictionary.")
@@ -172,7 +172,7 @@ class MLRun:
             print(f"Logged to wandb: {metrics_dict}")
 
     def finish(self):
-        """アクティブな wandb run を終了する"""
+        """Finish the active wandb run"""
         if self.wandb_run:
             self.wandb_run.finish()
             self.wandb_run = None
@@ -181,7 +181,7 @@ class MLRun:
             print(f"Run {self.run_id} was not active. No need to finish.")
 
     def get_wandb_url(self) -> str:
-        """wandb ダッシュボードへの URL を返す"""
+        """Return URL to wandb dashboard"""
         if self.wandb_entity and self.wandb_project:
             return f"https://wandb.ai/{self.wandb_entity}/{self.wandb_project}/runs/{self.run_id}"
         else:
@@ -192,21 +192,21 @@ class MLRun:
         return f"<MLRun (id={self.run_id}, created={ts_str})>"
 
 
-# --- MLProject クラス ---
+# --- MLProject class ---
 
 class MLProject:
-    """複数の MLRun を管理するプロジェクトクラス"""
+    """Project class to manage multiple MLRuns"""
 
     def __init__(self, base_dir: str = "./checkpoints"):
         self.base_dir = base_dir
-        os.makedirs(self.base_dir, exist_ok=True) # フォルダがなければ作成
+        os.makedirs(self.base_dir, exist_ok=True) # Create folder if it doesn't exist
         self.df = pd.DataFrame()
-        self.load_project() # 初期化時にロード
+        self.load_project() # Load on initialization
 
     def load_project(self):
         """
-        base_dir 内のすべての config.toml と metrics.toml を読み込み、
-        マージして DataFrame に変換する。
+        Load all config.toml and metrics.toml in base_dir,
+        merge them and convert to DataFrame.
         """
         config_paths = glob.glob(os.path.join(self.base_dir, "*", "config.toml"))
         
@@ -217,14 +217,14 @@ class MLProject:
             run_dir = os.path.dirname(path)
             
             try:
-                # 1. config.toml をロード (これに _wandb, _meta が含まれる)
+                # 1. Load config.toml (contains _wandb, _meta)
                 with open(path, "r") as f:
                     data = toml.load(path)
                 
                 data["run_id"] = run_id
                 data["run_dir"] = run_dir
 
-                # 2. 対応する metrics.toml もロードしてマージ
+                # 2. Load corresponding metrics.toml and merge
                 metrics_path = os.path.join(run_dir, "metrics.toml")
                 if os.path.exists(metrics_path):
                     try:
@@ -243,11 +243,11 @@ class MLProject:
             print(f"No runs found in {self.base_dir}")
             self.df = pd.DataFrame()
         else:
-            # 3. DataFrame を構築
-            # (ネストしたキーは 'model.name' や '_meta.created_at' に展開)
+            # 3. Build DataFrame
+            # (Nested keys are expanded to 'model.name' or '_meta.created_at')
             self.df = pd.json_normalize(all_data, sep=".")
             
-            # --- 変更点 8: タイムスタンプカラムを datetime 型に変換 ---
+            # --- Change 8: Convert timestamp column to datetime type ---
             if "_meta.created_at" in self.df.columns:
                 self.df["_meta.created_at"] = pd.to_datetime(
                     self.df["_meta.created_at"]
@@ -261,8 +261,8 @@ class MLProject:
         self, query_string: str, return_objects: bool = False
     ) -> pd.DataFrame | List[MLRun]:
         """
-        DataFrame をクエリ文字列で検索する。
-        (タイムスタンプでのクエリ例:
+        Search DataFrame with query string.
+        (Example query with timestamp:
          "`_meta.created_at` > '2023-10-27 12:00:00'")
         """
         if self.df.empty:
@@ -274,13 +274,13 @@ class MLProject:
         except Exception as e:
             print(f"Query failed: {e}")
             print("---")
-            print("ヒント: ネストしたキー (例: 'model.name', '_meta.created_at') は")
-            print("バッククォートで囲んでください: `model.name` == 'bert'")
-            print("メトリクス (例: 'accuracy > 0.9') はそのまま検索できます。")
+            print("Hint: Nested keys (e.g., 'model.name', '_meta.created_at')")
+            print("should be enclosed in backticks: `model.name` == 'bert'")
+            print("Metrics (e.g., 'accuracy > 0.9') can be searched directly.")
             print("---")
             return pd.DataFrame() if not return_objects else []
 
-        # (Bonus) wandb_url カラムを DataFrame に追加
+        # (Bonus) Add wandb_url column to DataFrame
         url_cols = ["_wandb.entity", "_wandb.project", "run_id"]
         if all(col in results_df.columns for col in url_cols):
             results_df["wandb_url"] = results_df.apply(
@@ -296,7 +296,7 @@ class MLProject:
             return results_df
 
     def get_run(self, run_id: str) -> MLRun:
-        """run_id を指定して MLRun オブジェクトをロードする"""
+        """Load MLRun object by specifying run_id"""
         return MLRun.load(run_id, self.base_dir)
 
     def __len__(self):
@@ -306,27 +306,27 @@ class MLProject:
         return f"<MLProject (path={self.base_dir}, runs={len(self)})>"
 
 # =============================================================================
-# 🚀 実行例 (使い方)
+# 🚀 Example Usage
 # =============================================================================
 if __name__ == "__main__":
 
-    # (wandb にログインしている前提)
+    # (Assumes logged into wandb)
     # wandb.login() 
 
     import shutil
     import time
     DEMO_DIR = "./checkpoints_demo"
     
-    # --- 1. テスト用のクリーンアップ ---
+    # --- 1. Clean up test directory ---
     if os.path.exists(DEMO_DIR):
         print(f"Cleaning up old demo directory: {DEMO_DIR}\n")
         shutil.rmtree(DEMO_DIR)
 
-    # --- 2. プロジェクトの準備 ---
-    WANDB_ENTITY = "causal-rl" # ★ ご自身の wandb entity に変更
+    # --- 2. Prepare project ---
+    WANDB_ENTITY = "causal-rl" # ★ Change to your wandb entity
     WANDB_PROJECT = "mlproject-demo-v2"
     
-    # --- 3. 実験 1 (CNN) を実行 ---
+    # --- 3. Run Experiment 1 (CNN) ---
     print("\n" + "="*30)
     print("--- Running Experiment 1 (CNN) ---")
     config1 = {
@@ -341,12 +341,12 @@ if __name__ == "__main__":
         project_name=WANDB_PROJECT,
         entity=WANDB_ENTITY
     )
-    print(f"Run 1 Object: {run1}") # __repr__ の確認
+    print(f"Run 1 Object: {run1}") # Check __repr__
     
     run1.add_metrics({"accuracy": 0.92, "f1_score": 0.91, "epoch": 10})
     run1.finish()
 
-    # --- 4. 実験 2 (BERT) を実行 (数秒待機) ---
+    # --- 4. Run Experiment 2 (BERT) (wait a few seconds) ---
     print("\n...waiting 2 seconds to ensure different timestamps...")
     time.sleep(2)
     
@@ -369,15 +369,15 @@ if __name__ == "__main__":
     run2.add_metrics({"accuracy": 0.96, "f1_score": 0.95, "epoch": 5})
     run2.finish()
 
-    # --- 5. プロジェクトをロードしてメトリクスとタイムスタンプを確認 ---
+    # --- 5. Load project and check metrics and timestamps ---
     print("\n" + "="*30)
     print("--- Loading Project and Checking DataFrame ---")
     
     project = MLProject(base_dir=DEMO_DIR)
     
     print("\n[DataFrame with Metrics and Timestamps]")
-    # '_meta.created_at' カラムが追加されていることを確認
-    # (表示するカラムが多すぎる場合は、関連するカラムのみ選択)
+    # Verify that '_meta.created_at' column is added
+    # (If too many columns, select only relevant columns)
     display_cols = [
         "run_id", 
         "_meta.created_at", 
@@ -385,27 +385,27 @@ if __name__ == "__main__":
         "accuracy", 
         "learning_rate"
     ]
-    # df.columns に存在するカラムのみ表示
+    # Display only columns that exist in df.columns
     display_cols = [col for col in display_cols if col in project.df.columns]
     
     print(project.df[display_cols].to_markdown(index=False))
 
-    # --- 6. タイムスタンプでソート ---
+    # --- 6. Sort by timestamp ---
     print("\n" + "="*30)
     print("--- Sorting by Timestamp (DESC) ---")
     
-    # datetime 型になっているため、正しくソートできる
+    # Sorts correctly because it's datetime type
     sorted_df = project.df.sort_values(by="_meta.created_at", ascending=False)
     print(sorted_df[display_cols].to_markdown(index=False))
 
-    # --- 7. タイムスタンプで検索 ---
+    # --- 7. Search by timestamp ---
     print("\n" + "="*30)
-    print("--- Searching by Timestamp (run2 のみ) ---")
+    print("--- Searching by Timestamp (only run2) ---")
     
-    # run1 と run2 の中間時刻を取得 (簡易的)
+    # Get mid-time between run1 and run2 (simplified)
     if run1.created_at and run2.created_at:
         mid_time = run1.created_at + (run2.created_at - run1.created_at) / 2
-        mid_time_str = mid_time.isoformat() # ISO 文字列でクエリ
+        mid_time_str = mid_time.isoformat() # Query with ISO string
         
         query = f"`_meta.created_at` > '{mid_time_str}'"
         print(f"Query: {query}")
